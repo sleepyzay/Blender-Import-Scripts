@@ -8,12 +8,12 @@ import tkinter as tk
 from tkinter import filedialog
 
 def open_file():
-    root = tk.Tk()
-    root.withdraw()  # Hide the root window
-    file_path = filedialog.askopenfilename(
-        filetypes=[("TPL files", "*.tpl")]  # Restrict to .tpl files
-    )
-    return file_path
+	root = tk.Tk()
+	root.withdraw()  # Hide the root window
+	file_path = filedialog.askopenfilename(
+		filetypes=[("TPL files", "*.tpl")]  # Restrict to .tpl files
+	)
+	return file_path
 
 def tell(file_object, endian = '<'):
 	return file_object.tell()
@@ -59,22 +59,22 @@ def read_fixed_string(file_object, length):
 		chars.append(file_object.read(1).decode())
 	return "".join(chars)
 def read_fixed_byte_string(file_object, length, var1, var2):
-    chars = []
-    for x in range(length):
-        chars.append(read_byte(file_object))
+	chars = []
+	for x in range(length):
+		chars.append(read_byte(file_object))
 
-    if var1 == 1:
-        file_object.seek(-length, 1)
+	if var1 == 1:
+		file_object.seek(-length, 1)
 
-    # Create the formatted string
-    result_string = " ".join(['{0:02x}'.format(char) for char in chars])
+	# Create the formatted string
+	result_string = " ".join(['{0:02x}'.format(char) for char in chars])
 
-    # Print the string if var2 == 1
-    if var2 == 1:
-        print(result_string)
+	# Print the string if var2 == 1
+	if var2 == 1:
+		print(result_string)
 
-    # Return the string regardless
-    return result_string
+	# Return the string regardless
+	return result_string
 def reverse_string(string):
 	return string[::-1]
 def get_key(val, dict):
@@ -104,49 +104,50 @@ def getIndex(f, offset):
 		f.seek(returnOffset)
 	return(index)
 def bits_to_string(bit_list, n=0, reverse_bytes=False):
-    # Split the bit_list into chunks of 8 (bytes)
-    byte_chunks = [bit_list[i:i+8] for i in range(0, len(bit_list), 8)]
-    
-    if reverse_bytes:
-        # Reverse each chunk (byte) if reverse_bytes is True
-        byte_chunks = [byte[::-1] for byte in byte_chunks]
-    
-    # Join the bytes back into a string
-    bit_str = ''.join([''.join(map(str, byte)) for byte in byte_chunks])
-    
-    # If n > 0, add spaces after every n characters
-    if n > 0:
-        return ' '.join([bit_str[i:i+n] for i in range(0, len(bit_str), n)])
-    else:
-        return bit_str
+	# Split the bit_list into chunks of 8 (bytes)
+	byte_chunks = [bit_list[i:i+8] for i in range(0, len(bit_list), 8)]
+	
+	if reverse_bytes:
+		# Reverse each chunk (byte) if reverse_bytes is True
+		byte_chunks = [byte[::-1] for byte in byte_chunks]
+	
+	# Join the bytes back into a string
+	bit_str = ''.join([''.join(map(str, byte)) for byte in byte_chunks])
+	
+	# If n > 0, add spaces after every n characters
+	if n > 0:
+		return ' '.join([bit_str[i:i+n] for i in range(0, len(bit_str), n)])
+	else:
+		return bit_str
 def readBits(f, bitCount, reverse_bits_per_byte=False, reverse_bit_order=False):
-    # Read the necessary bytes from the file
-    bytes_data = f.read(math.ceil(bitCount / 8))
-    
-    # Extract bits from each byte
-    bits = []
-    for byte in bytes_data:
-        # Extract bits in normal order (MSB to LSB)
-        byte_bits = [(byte >> bit) & 1 for bit in range(8)]
-        
-        # Reverse bits within each byte if specified
-        if reverse_bits_per_byte:
-            byte_bits = byte_bits[::-1]
-        
-        bits.extend(byte_bits)
-    
-    # Limit the list to the required bit count
-    bits = bits[:bitCount]
-    
-    # Reverse the entire bit order if specified
-    if reverse_bit_order:
-        bits = bits[::-1]
-    
-    return bits
+	# Read the necessary bytes from the file
+	bytes_data = f.read(math.ceil(bitCount / 8))
+	
+	# Extract bits from each byte
+	bits = []
+	for byte in bytes_data:
+		# Extract bits in normal order (MSB to LSB)
+		byte_bits = [(byte >> bit) & 1 for bit in range(8)]
+		
+		# Reverse bits within each byte if specified
+		if reverse_bits_per_byte:
+			byte_bits = byte_bits[::-1]
+		
+		bits.extend(byte_bits)
+	
+	# Limit the list to the required bit count
+	bits = bits[:bitCount]
+	
+	# Reverse the entire bit order if specified
+	if reverse_bit_order:
+		bits = bits[::-1]
+	
+	return bits
 
 def findNum(f, searchNum, searchLimit = 0x10000):
 	initialOffset = tell(f)
-	while (tell(f) < initialOffset + searchLimit):
+	fileSize = os.stat(filePath).st_size
+	while (tell(f) < initialOffset + searchLimit) or (tell(f) < fileSize):
 		num = f.read(4)
 		value = struct.unpack('<I', num)[0]
 		if value != searchNum:
@@ -157,9 +158,9 @@ def findNum(f, searchNum, searchLimit = 0x10000):
 			return (numOffset)
 	f.seek(initialOffset)
 
-        
+		
 
-        
+		
 
 class _nodeData():
 	def __init__(self, f):
@@ -192,19 +193,57 @@ class _subMeshData():
 class _subMeshUVScaleData():
 	def __init__(self, f):
 		read_fixed_byte_string(f, 3, 1, 0)
-		self.unk = read_byte(f)
-		self.unk2 = read_byte(f)
-		self.unk3 = read_byte(f)
+		self.uvIndex = read_byte(f)
+		self.uvScale = read_ushort(f)
 class _subMeshScaleData():
 	def __init__(self, f):
 		read_fixed_byte_string(f, 0x0c, 1, 0)
 		self.translation = [read_ushort(f),read_ushort(f),read_ushort(f)]
 		self.scale = [read_ushort(f),read_ushort(f),read_ushort(f)]
+class _subMeshMaterial():
+	def __init__(self, f):
+		self.nodeId = read_ushort(f)
+		self.materialParameterCount = read_uint(f)
+
+		for x in range(self.materialParameterCount): _materialParameter(self)
+class _materialParameter():
+	def __init__(self, subMeshMaterial):
+		self.dataName = read_fixed_string(f, read_uint(f))
+		self.dataType = read_uint(f)
+		self.data = self.getData(self.dataType)
+
+		setattr(subMeshMaterial, self.dataName, self.data)
+
+	def getData(self, dataType):
+		match dataType:
+			case 1:
+				return read_uint(f)
+			case 2:
+				return read_float(f)
+			case 3:
+				return read_byte(f)
+			case 4:
+				return read_fixed_string(f,read_uint(f))
+			case 6:
+				return [read_fixed_byte_string(f, 0x08, 0, 0) for x in range(read_uint(f))]
+			case 7:
+				subMaterialParameter = _subMaterialParameter()
+				subMaterialParameterCount = read_uint(f)
+				for x in range(subMaterialParameterCount):  _materialParameter(subMaterialParameter)
+
+				return subMaterialParameter
+			case _:
+				print("unknown dataType: {0:x}".format(dataType))
+class _subMaterialParameter():
+	pass
+
+# print(len(sys.argv))
+# print(sys.argv[1])
 
 filePath = open_file()
+# filePath = r""
 filePath2 = filePath + "_data"
-
-filePath3 = r"D:\scripts\blender\warhammer 40k space marine 2\out.txt"
+filePath3 = r"out.txt"
 
 f = open(filePath, 'r+b')
 g = open(filePath2, 'r+b')
@@ -212,8 +251,10 @@ g = open(filePath2, 'r+b')
 fileSize = os.stat(filePath).st_size
 fileSize2 = os.stat(filePath2).st_size
 
-print(filePath.split('\\')[-1])
-print(filePath2.split('\\')[-1])
+# print(filePath.split('\\')[-1])
+# print(filePath2.split('\\')[-1])
+# print(filePath)
+# print(filePath2)
 
 magic = read_fixed_string(f, 0x08)
 
@@ -226,6 +267,16 @@ f.seek(0x08, 1)					# 0A 00 02 00 03 00 E3 03
 nodeCount = read_uint(f)
 sectionCount = read_uint(f)
 
+nodeIdList = []
+nodeFlagList = []
+nodeParentIdList = []
+nodeSiblingIdList = []
+nodeSecondSiblingIdList = []
+nodeChildIdList = []
+nodeBoneIdList = []
+nodeBoundBoxDataList = []
+nodeExportInfoList = []
+
 print("nodeCount: {0:x}	sectionCount:{1:x}".format(nodeCount, sectionCount))
 print_here(f)
 for x in range(sectionCount):
@@ -234,24 +285,31 @@ for x in range(sectionCount):
 	if sectionPresent != 0x00:
 		match x:
 			case 0x00:
-				nodeIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x02:
 				nodeFlagList = [readBits(f,read_ushort(f)) for y in range(nodeCount)]
 			case 0x03:
-				nodeParentIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeParentIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x04:
-				nodeSiblingIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeSiblingIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x05:
-				nodeSecondSiblingIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeSecondSiblingIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x06:
-				nodeChildIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeChildIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x07:
-				nodeBoneIdList = [read_ushort(f) for y in range(nodeCount)]
+				nodeBoneIdList = [read_short(f) for y in range(nodeCount)]
 			case 0x0b:
 				# theres a shit ton of data in here. maybe it isn't just bound box data
-				nodeBoundBoxDataList = [read_fixed_byte_string(f, 0x59, 0, 0) for x in range(sum(readBits(f,nodeCount)))]
+				nodeFlagList2 = readBits(f,nodeCount)
+				nodeBoundBoxDataList = [read_fixed_byte_string(f, 0x59, 0, 1) for x in range(sum(nodeFlagList2))]
+				# print(len(nodeBoundBoxDataList))
+			# case 0x0c:
+			# 	unkFloats = [read_float(f) for y in range(nodeCount)]
+			# 	print_here(f)
 			case 0x11:
 				nodeExportInfoList = [read_fixed_string(f, read_uint(f)) for y in range(nodeCount)]
+				# for n in nodeExportInfoList:
+				# 	print("\"{0}\"".format(n))
 			case _:
 				print("unknown section: {0:2x} @ {1:8x}".format(x, sectionOffset))
 				break
@@ -262,6 +320,8 @@ nodeCount2 = read_uint(f)			# same as nodeCount
 unk18 = read_byte(f)				# 0x01 / flag?
 nodeDataList = [_nodeData(f) for x in range(nodeCount2)]
 
+nodeNameList = ["None"] * nodeCount
+
 nodeCount3 = read_uint(f)			# same as nodeCount - 1
 unk19 = read_byte(f)				# 0x01 / flag?
 nodeStringList = [read_fixed_string(f, read_uint(f)) for x in range(nodeCount3)]	# skips rootBoneIndex?
@@ -269,8 +329,20 @@ nodeStringList = [read_fixed_string(f, read_uint(f)) for x in range(nodeCount3)]
 nodeCount4 = read_uint(f)			# same as nodeCount - 1
 nodeIdList = [read_ushort(f) for x in range(nodeCount4)]							# skips rootBoneIndex
 
+for x, nodeString in enumerate(nodeStringList):
+	nodeNameList[nodeIdList[x]] = nodeString
+	print("{0:4x} {1:4x} {2}".format(x, nodeIdList[x], nodeString))
+
 nodeCount5 = read_uint(f)			# same as nodeCount
 for x in range(nodeCount5):
+	print(x)
+	read_fixed_byte_string(f, 0x10, 0, 1)
+	read_fixed_byte_string(f, 0x10, 0, 1)
+	read_fixed_byte_string(f, 0x10, 0, 1)
+	read_fixed_byte_string(f, 0x10, 0, 1)
+	print()
+	f.seek(-0x40, 1)
+
 	m11 = read_float(f); m12 = read_float(f); m13 = read_float(f); m14 = read_float(f)
 	m21 = read_float(f); m22 = read_float(f); m23 = read_float(f); m24 = read_float(f)
 	m31 = read_float(f); m32 = read_float(f); m33 = read_float(f); m34 = read_float(f)
@@ -299,7 +371,7 @@ unkList4 = [read_ushort(f) for x in range(nodeCount7)]
 unkId0 = read_ushort(f)
 unkOffset6 = read_uint(f)			# points to unkId1
 
-rootBoneIndex = read_ushort(f)		# same as boneCount
+rootBoneIndex = read_ushort(f)
 nodeCount8 = read_uint(f)			# same as nodeCount
 bufferCount = read_uint(f)
 meshCount = read_uint(f)
@@ -320,7 +392,7 @@ unk30 = read_uint(f)				# 0x01 / count?
 unk31 = read_byte(f)				# 0x01 / flag?
 lodBufferIdsList = [[read_uint(f) for z in range(read_uint(f))] for y in range(lodCount)]	# a list of buffer id's per lod
 print("lodCount: {0:x}".format(lodCount))
-for bufferIds in lodBufferIdsList: print(bufferIds)
+# for bufferIds in lodBufferIdsList: print(bufferIds)
 
 unkCount16 = read_uint(f)			# same as bufferCount / related to unk30?
 unkId3 = read_uint(f)				# 0x02 / count?
@@ -347,15 +419,19 @@ unkOffset10 = read_uint(f)			# points to unkId10
 unkId6 = read_ushort(f)				# 0x00
 unkOffset11 = read_uint(f)			# points to unkId7
 bufferDataList = [readBits(f, read_ushort(f)) for x in range(bufferCount)] # describes the contents of the buffer
-# for bufferData in bufferDataList: print(bits_to_string(bufferData, 8))
+for bufferData in bufferDataList: print(bits_to_string(bufferData, 8))
+
+# with open(filePath3, 'a') as file:
+#     for bufferData in bufferDataList:
+#         file.write(bits_to_string(bufferData, 8) + '\n')
 
 unkId7 = read_ushort(f)				# 0x04
 unkOffset12 = read_uint(f)			# points to unkId8
 bufferDataList2 = [readBits(f, read_ushort(f)) for x in range(bufferCount)] # unknown data, only two flags
 # for bufferData in bufferDataList2: print(bits_to_string(bufferData, 1))
 
-for x in range(bufferCount):
-	print("{0} {1}".format(bits_to_string(bufferDataList[x], 8), bufferDataList2[x]))
+# for x in range(bufferCount):
+# 	print("{0} {1}".format(bits_to_string(bufferDataList[x], 8), bufferDataList2[x]))
 
 unkId8 = read_ushort(f)				# 0x01
 unkOffset13 = read_uint(f)			# points to unkId9
@@ -396,13 +472,15 @@ unkId15 = read_ushort(f)			# 0x01
 unkOffset20 = read_uint(f)			# points to unkId16
 meshIdList = [read_uint(f) for x in range(subMeshCount)]	# maps submeshes to mesh
 
+
 unkId16 = read_ushort(f)			# 0x08
 unkOffset21 = read_uint(f)			# points to unkId17
-f.seek(unkOffset21)					# material stuff / skipping
+subMeshMaterialList = [_subMeshMaterial(f) for x in range(subMeshCount)]
+
 
 unkId17 = read_ushort(f)			# 0x04
 unkOffset22 = read_uint(f)			# points to unkId18
-subMeshUVScaleDataList = [[_subMeshUVScaleData(f) for y in range(read_byte(f))] for x in range(subMeshCount)]	# some subMeshes have 2 uv's?
+subMeshUVScaleDataList = [[_subMeshUVScaleData(f) for y in range(read_byte(f))] for x in range(subMeshCount)]	# some subMeshes have 2 uv's
 
 unkId18 = read_ushort(f)			# 0x05
 unkOffset23 = read_uint(f)			# points to unkId19
@@ -411,13 +489,10 @@ subMeshScaleDataList = [_subMeshScaleData(f) if meshDataList2[meshIdList[x]][3] 
 # for x in range(subMeshCount):
 # 	print(bits_to_string(meshDataList2[meshIdList[x]]))
 
-# unkId19 = read_ushort(f)			# 0xffff
-# unkOffset24 = read_uint(f)			# points to end of file
+unkId19 = read_ushort(f)			# 0xffff
+unkOffset24 = read_uint(f)			# points to end of file
 
-if f.tell() == fileSize:
-	print("File fully read.")
-else:
-	print("Last read @ {0:x}".format(tell(f)))
+
 
 ################################################################################################
 # Doing stuff
@@ -474,39 +549,48 @@ for x in range(subMeshCount):
 		submeshTranslation = subMeshScaleDataList[x].translation if subMeshScaleDataList[x] != None else [0,0,0]
 
 		# print("bufferId: {0:2}	bufferOffset: {1:8x}	subBufferOffset: {2:8x} bufferStride: {3:4x} vertexIndex: {4:5x}".format(meshData.bufferId, bufferOffset, meshData.subBufferOffset, bufferStride, subMeshDataList[x].vertexIndex))
-		# print(bits_to_string(bufferFlags, 8, False))
+		print(bits_to_string(bufferFlags, 8, False))
 
 		if bufferFlags[0] == 1:
 			g.seek(bufferOffset + meshData.subBufferOffset + (subMeshDataList[x].vertexIndex * bufferStride))
-			# print_here(g)
-			# print("bufferStride: {0:x}".format(bufferStride))
-			# print_hex(vertexCount)
-			# print(bufferDataDebugList[meshData.bufferId][6:])
-			# print(bits_to_string(bufferFlags, 0, False))
-			
+			# if bufferFlags[0x03] == 1 and bufferFlags[0x7] == 1: print_here(g)
 			for z in range(vertexCount):
-				# if z < 100: read_fixed_byte_string(g,bufferStride,1, 1)
+				if z < 100: read_fixed_byte_string(g,bufferStride,1, 1)
 				if bufferFlags[3] == 0:
 					vx = read_float(g)
 					vy = read_float(g)
 					vz = read_float(g)
+					vw = read_float(g)
 					positionsList.append((vx,vy,vz))
-					g.seek(bufferStride - 0x0c, 1)
+					g.seek(bufferStride - 0x10, 1)
 				if bufferFlags[3] == 1:
+					# if z < 100 and bufferFlags[0x7] == 0 and bufferFlags[0x9] == 0: read_fixed_byte_string(g, bufferStride, 1, 1)
 					vx = read_short(g) / 32767
 					vy = read_short(g) / 32767
 					vz = read_short(g) / 32767
 					vw = read_short(g) / 32767
 					positionsList.append((vx,vy,vz))
 					g.seek(bufferStride - 0x08, 1)
+		if bufferFlags[12] == 1:
+			g.seek(bufferOffset + meshData.subBufferOffset + (subMeshDataList[x].vertexIndex * bufferStride))
+			
+			# if bufferFlags[0x03] == 1 and bufferFlags[0x7] == 1: print_here(g)
+			for z in range(vertexCount):
+				# if z < 100: read_fixed_byte_string(g,bufferStride,1, 1)
+				
+				g.seek(bufferStride, 1)
 		if sum(bufferFlags) == 0:
-			# print_hex(faceCount)
-
 			g.seek(bufferOffset + meshData.subBufferOffset + ((subMeshDataList[x].faceIndex * bufferStride)))
-			for z in range(faceCount // 3):
-				fa = read_ushort(g)
-				fb = read_ushort(g)
-				fc = read_ushort(g)
+			for z in range(faceCount):
+				fa = read_ushort(g) - vertexIndex
+				fb = read_ushort(g) - vertexIndex
+				fc = read_ushort(g) - vertexIndex
 
 				indexList.append([fa,fb,fc])
 	# print()
+
+
+if f.tell() == fileSize:
+	print("File fully read.")
+else:
+	print("Last read @ {0:x}".format(tell(f)))

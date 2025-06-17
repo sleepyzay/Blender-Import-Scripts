@@ -355,7 +355,7 @@ def importModel(filePath):
 
 			f.seek(meshOffset)
 			# read_fixed_byte_string(f, 0x24, 1, 1)
-			meshLength = read_uint(f)
+			morphsOffset = read_uint(f)
 			vertexCount = read_uint(f)
 			vertexLength = read_uint(f)
 			vertexOffset = read_uint(f)
@@ -364,8 +364,7 @@ def importModel(filePath):
 			indexCount = read_uint(f)
 			indexLength = read_uint(f)
 			indexOffset = read_uint(f)
-			unk2 = read_ushort(f)   # sometimes 1
-			unk3 = read_ushort(f)   # null?
+			morphsFlag = read_ushort(f)   # sometimes 0x100
 
 			print("vertexCount: {0:8x}  indexCount: 	{1:8x}".format(vertexCount, indexCount))
 			print("vertexOffset:	{0:8x}  indexOffset:	{1:8x}\n".format(vertexOffset + meshOffset, indexOffset + meshOffset))
@@ -373,9 +372,7 @@ def importModel(filePath):
 			positionsList = []
 			normalsList = []
 			colorsList = []
-			uv1List = []
-			uv2List = []
-			uv3List = []
+			uvList = [[],[],[],[]]
 			weightsList = []
 			boneIdsList = []
 			indexList = []
@@ -383,49 +380,55 @@ def importModel(filePath):
 			modelScale = 1  # making this more than 1 removes vertices for some reason, thanks blender.
 
 			f.seek(vertexOffset + meshOffset)
-			for x in range(15, -1, -1):
+			for x in range(15):
 				if (vertexAttributes >> x) & 1 == 1:
 					match x:
-						case 10:	# positions
+						case 0:	# positions
 							for y in range(vertexCount):
 								vx = read_float(f)
 								vy = read_float(f)
 								vz = read_float(f)
 
 								positionsList.append((vx,vy,vz)*modelScale)
-						case 9: 	# normals
+						case 1: 	# normals
 							for y in range(vertexCount):
-								nx = ((read_byte(f) / 255.0) * 2) - 1
-								ny = ((read_byte(f) / 255.0) * 2) - 1
-								nz = ((read_byte(f) / 255.0) * 2) - 1
-								nw = read_byte(f)
+								nx = (read_byte(f) / 127.5) - 1.0
+								ny = (read_byte(f) / 127.5) - 1.0
+								nz = (read_byte(f) / 127.5) - 1.0
+								nw = (read_byte(f) / 127.5) - 1.0
 
-								normalsList.append((nx,ny,nz))
-						case 5: 	# colors
+								normalsList.append(Vector([nx,ny,nz]).normalized())
+						case 2: 	# colors
 							for y in range(vertexCount):
 								ca = read_byte(f)
 								cb = read_byte(f)
 								cg = read_byte(f)
 								cr = read_byte(f)
-						case 4: 	# uv's 3
+						case 3: 	# uv's 1 for solid colors?
 							for y in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
-								uv3List.append(Vector([tu,1-tv]))
-						case 3: 	# uv's 2
+								uvList[0].append(Vector([tu,1-tv]))
+						case 4: 	# uv's 2 for diffuse?
 							for y in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
-								uv2List.append(Vector([tu,1-tv]))
-						case 2: 	# uv's 1
+								uvList[1].append(Vector([tu,1-tv]))
+						case 5: 	# uv's 3 unknown
 							for y in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
-								uv1List.append(Vector([tu,1-tv]))
-						case 1: 	# weights
+								uvList[2].append(Vector([tu,1-tv]))
+						case 6: 	# uv's 4 unknown
+							for y in range(vertexCount):
+								tu = read_half(f)
+								tv = read_half(f)
+
+								uvList[3].append(Vector([tu,1-tv]))
+						case 9: 	# weights
 							for y in range(vertexCount):
 								weight1 = read_float(f)
 								weight2 = read_float(f)
@@ -433,7 +436,7 @@ def importModel(filePath):
 								weight4 = read_float(f)
 
 								weightsList.append([weight1,weight2,weight3,weight4])
-						case 0: 	# bone id's
+						case 10: 	# bone id's
 							for y in range(vertexCount):
 								bone1 = read_byte(f)
 								bone2 = read_byte(f)
@@ -442,6 +445,7 @@ def importModel(filePath):
 
 								boneIdsList.append([bone1,bone2,bone3,bone4])
 						case _:
+							# 7/8 = tangent/bitangent
 							print("unknown vertex attribute: {0}".format(x))
 
 			f.seek(indexOffset + meshOffset)
@@ -450,74 +454,36 @@ def importModel(filePath):
 				fb = read_ushort(f)
 				fc = read_ushort(f)
 
-				if fc >= vertexCount: fc = (vertexCount - 1)   # end of files are sometimes corrupted
+				# end of files are sometimes corrupted
+				if fa >= vertexCount or fb >= vertexCount or fc >= vertexCount: 
+					fa = (vertexCount - 3)   
+					fb = (vertexCount - 2)
+					fc = (vertexCount - 1)
 
 				indexList.append([fa,fb,fc])
 
 			meshName = str(x)
 
-			# #BuildMesh
-			# mesh1 = bpy.data.meshes.new("Mesh")
-			# mesh1.use_auto_smooth = True
-			# obj = bpy.data.objects.new(meshName,mesh1)
-			# modelCollection.objects.link(obj)
-
-			# bpy.context.view_layer.objects.active = obj
-			# obj.select_set(True)
-
-			# mesh = bpy.context.object.data
-			# bm = bmesh.new()
-			# for v in positionsList:
-			#   bm.verts.new((v[0],v[1],v[2]))
-			# list = [v for v in bm.verts]
-
-			# for i in indexList:
-			#   try:
-			#   	bm.faces.new((list[i[0]],list[i[1]],list[i[2]]))
-			#   except:
-			#   	continue
-					
-			# bm.to_mesh(mesh)
-			
-			# uv_layer = bm.loops.layers.uv.verify()
-			# Normals = []
-			# for i in bm.faces:
-			#   i.smooth=True
-			#   for l in i.loops:
-			#   	if normalsList != []:
-			#   		Normals.append(normalsList[l.vert.index])
-			#   	luv = l[uv_layer]
-			#   	try:
-			#   		luv.uv = uv1List[l.vert.index]
-			#   	except:
-			#   		continue
-			# bm.to_mesh(mesh)
-
-			# if normalsList != []:
-			#   # mesh1.normals_split_custom_set(Normals)
-			#   mesh1.normals_split_custom_set_from_vertices(normalsList)
-
-			# my version
-			uv0List = [Vector([0,0]) for x in range(vertexCount)]
-
 			new_mesh = bpy.data.meshes.new(meshName)
 			new_mesh.from_pydata(positionsList, [], indexList)
-			new_mesh.use_auto_smooth = True
-
+			
 			new_mesh.update()
 
-			new_mesh.uv_layers.new()
-			uv_layer = new_mesh.uv_layers.active.data
+			new_mesh.polygons.foreach_set("use_smooth", [True] * len(new_mesh.polygons))
+			new_mesh.update(calc_edges=True)
 
-			for loop in new_mesh.loops:
-				uv_layer[loop.index].uv = uv0List[loop.vertex_index]
-			new_mesh.normals_split_custom_set_from_vertices([normalize_tuple(n) for n in normalsList])
-			#new_mesh.normals_split_custom_set_from_vertices(normalsList)
-			
-			# # Assign custom UV coordinates to each of the 3 UV channels
-			# if len(uv1List) > 0: assign_uvs(new_mesh, uv1List, "UVMap_1")
-			# if len(uv2List) > 0: assign_uvs(new_mesh, uv2List, "UVMap_2")
-			# if len(uv3List) > 0: assign_uvs(new_mesh, uv3List, "UVMap_3")
+			# new_mesh.normals_split_custom_set_from_vertices([normalize_tuple(n) for n in normalsList])
+			new_mesh.normals_split_custom_set_from_vertices(normalsList)
+
+
+			uvChannelCount = sum(1 for sublist in uvList if len(sublist) > 0)
+			print("UV Channel Count: {0}".format(uvChannelCount))
+
+			for x in range(uvChannelCount):
+				uv_layer = new_mesh.uv_layers.new(name=f"UVMap_{x}")
+				for loop in new_mesh.loops:
+					vert_index = loop.vertex_index
+					uv_layer.data[loop.index].uv = uvList[x][vert_index]
 
 			new_mesh.update()
 
@@ -547,8 +513,8 @@ def importModel(filePath):
 
 		print("Last read model @ {0:x}".format(tell(f)))
 
-skelPath = r"D:\models\ripped\db project multi\00000153.skel"
+skelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\0-9999\169.skel"
 importSkeleton(skelPath)
 
-modelPath = r"D:\models\ripped\db project multi\00000170.mesh"
+modelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\0-9999\167.mesh"
 importModel(modelPath)

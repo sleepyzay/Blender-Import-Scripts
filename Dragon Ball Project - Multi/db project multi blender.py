@@ -367,7 +367,7 @@ def importModel(filePath):
 			morphsFlag = read_ushort(f)   # sometimes 0x100
 
 			print("vertexCount: {0:8x}  indexCount: 	{1:8x}".format(vertexCount, indexCount))
-			print("vertexOffset:	{0:8x}  indexOffset:	{1:8x}\n".format(vertexOffset + meshOffset, indexOffset + meshOffset))
+			print("vertexOffset:	{0:8x}  indexOffset:	{1:8x}".format(vertexOffset + meshOffset, indexOffset + meshOffset))
 
 			positionsList = []
 			normalsList = []
@@ -400,10 +400,10 @@ def importModel(filePath):
 								normalsList.append(Vector([nx,ny,nz]).normalized())
 						case 2: 	# colors
 							for y in range(vertexCount):
-								ca = read_byte(f)
-								cb = read_byte(f)
-								cg = read_byte(f)
 								cr = read_byte(f)
+								cg = read_byte(f)
+								cb = read_byte(f)
+								ca = read_byte(f)
 						case 3: 	# uv's 1 for solid colors?
 							for y in range(vertexCount):
 								tu = read_half(f)
@@ -462,22 +462,36 @@ def importModel(filePath):
 
 				indexList.append([fa,fb,fc])
 
+			f.seek(morphsOffset + meshOffset)
+			if morphsFlag == 0x100:
+				morphCount = read_uint(f)
+				morphDataLength = read_uint(f)
+				morphBoundBox = [read_float(f) for y in range(6)]
+				morphNameHashList = [read_uint(f) for y in range(morphCount)]
+
+				print("morphCount: {0:8x}".format(morphCount))
+
+				for y in range(morphCount):
+					morphDeltaVertexList = [read_uint(f) for z in range(vertexCount)]	# packed / unknown encoding
+
+				# print_here(f)
+
 			meshName = str(x)
 
 			new_mesh = bpy.data.meshes.new(meshName)
 			new_mesh.from_pydata(positionsList, [], indexList)
 			
-			new_mesh.update()
+			# new_mesh.update()
 
 			new_mesh.polygons.foreach_set("use_smooth", [True] * len(new_mesh.polygons))
 			new_mesh.update(calc_edges=True)
 
-			# new_mesh.normals_split_custom_set_from_vertices([normalize_tuple(n) for n in normalsList])
 			new_mesh.normals_split_custom_set_from_vertices(normalsList)
 
 
 			uvChannelCount = sum(1 for sublist in uvList if len(sublist) > 0)
 			print("UV Channel Count: {0}".format(uvChannelCount))
+
 
 			for x in range(uvChannelCount):
 				uv_layer = new_mesh.uv_layers.new(name=f"UVMap_{x}")
@@ -510,11 +524,12 @@ def importModel(filePath):
 					mesh_obj.vertex_groups[int(bones[j])].add([i], weights[j], 'ADD')
 
 			modelCollection.objects.link(mesh_obj)
+			print("")
 
 		print("Last read model @ {0:x}".format(tell(f)))
 
-skelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\0-9999\169.skel"
+skelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\169.skel"
 importSkeleton(skelPath)
 
-modelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\0-9999\167.mesh"
+modelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\167.mesh"
 importModel(modelPath)

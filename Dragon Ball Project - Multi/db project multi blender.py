@@ -216,7 +216,6 @@ def importSkeleton(filePath):
 
 			#rot = Matrix(([m11, m12, m13],[m21, m22, m23],[m31, m32, m33]))
 			rot = Matrix(([m11, m21, m31],[m12, m22, m32],[m13, m23, m33]))
-
 			pos = Vector([m41, m42, m43])
 			scl = Vector([1,1,1])
 
@@ -264,6 +263,65 @@ def importSkeleton(filePath):
 		print("Last read skeleton @ {0:x}".format(tell(f)))
 
 
+def unpackNumber(bit_lengths, number, boundBin):
+	result = []
+	shift = 0
+
+	for bits in bit_lengths:
+		mask = (1 << bits) - 1
+		part = (number >> shift) & mask
+		shift += bits
+
+		# # Interpret as signed (two's complement)
+		# sign_bit = 1 << (bits - 1)
+		# if part & sign_bit:
+		#     part -= 1 << bits
+
+		result.append(part / (1 << bits + 4) )
+
+#    result[0] += boundBin[0]
+#    result[1] += boundBin[1]
+
+	return result
+def unpackNumber2(bit_lengths, number):
+	result = []
+	total_bits = sum(bit_lengths)
+	shift = total_bits
+
+	for bits in bit_lengths:
+		shift -= bits
+		mask = (1 << bits) - 1
+		part = (number >> shift) & mask
+
+		# # Interpret as signed (two's complement)
+		# sign_bit = 1 << (bits - 1)
+		# if part & sign_bit:
+		#     part -= 1 << bits
+
+		result.append(part / (1 << bits + 4))
+
+	return result
+
+def sign_extend(value, bits):
+	"""
+	Convert an unsigned integer to a signed integer of specified bit width.
+	Uses two's complement representation.
+	
+	Args:
+		value: The unsigned integer value
+		bits: The bit width for the signed representation
+	
+	Returns:
+		The signed integer value
+	"""
+	# Check if the sign bit is set
+	if value & (1 << (bits - 1)):
+		# If sign bit is set, subtract 2^bits to get negative value
+		return value - (1 << bits)
+	else:
+		# If sign bit is not set, value is already correct
+		return value
+
 def importModel(filePath):
 	with open(filePath, 'rb') as f:
 		fileName = get_file_name(filePath)
@@ -305,7 +363,7 @@ def importModel(filePath):
 				# read_fixed_byte_string(f, 0x28, 1, 1)
 				self.table1Id = read_ushort(f)
 				self.table4Id = read_ushort(f)
-				self.bodyBoneId = read_uint(f)  #table3Id?
+				self.table3Id = read_uint(f)
 				self.null = read_uint(f)
 				self.indexCount = read_uint(f)
 				self.unkFloat1 = read_float(f)
@@ -317,22 +375,14 @@ def importModel(filePath):
 		class _table3():
 			#new bone positions or bound boxes
 			def __init__(self):
-				# read_fixed_byte_string(f, 0x1c, 1, 1) 
+				read_fixed_byte_string(f, 0x1c, 1, 1)	
 				self.boneId = read_uint(f)
-				self.unkFloat1 = read_float(f)
-				self.unkFloat2 = read_float(f)
-				self.unkFloat3 = read_float(f)
-				self.unkFloat4 = read_float(f)
-				self.unkFloat5 = read_float(f)
-				self.unkFloat6 = read_float(f)
+				self.unkMin = [read_float(f) for x in range(3)]	# -0.5
+				self.unkMax = [read_float(f) for x in range(3)]	# 0.5
 		class _table4():
 			def __init__(self):
 				self.meshOffset = read_uint(f)
-				
-		class mesh():
-			def __init__(self, ):
-				pass
-
+		
 		modelCollection = bpy.data.collections.new(fileName)				# create collection within blender
 		bpy.context.scene.collection.children.link(modelCollection) 
 
@@ -348,10 +398,13 @@ def importModel(filePath):
 		f.seek(table4Offset)
 		table4List = [_table4() for x in range(table4Count)]
 
-		for x in range(table2Count):
+		for x in range(7):	# table2Count
 			table2 = table2List[x]
+			table1 = table1List[table2.table1Id]
+			table3 = table3List[table2.table3Id]
+			table4 = table4List[table2.table3Id]
 			
-			meshOffset = table4List[table2.table4Id].meshOffset
+			meshOffset = table4.meshOffset
 
 			f.seek(meshOffset)
 			# read_fixed_byte_string(f, 0x24, 1, 1)
@@ -380,18 +433,18 @@ def importModel(filePath):
 			modelScale = 1  # making this more than 1 removes vertices for some reason, thanks blender.
 
 			f.seek(vertexOffset + meshOffset)
-			for x in range(15):
-				if (vertexAttributes >> x) & 1 == 1:
-					match x:
+			for y in range(15):
+				if (vertexAttributes >> y) & 1 == 1:
+					match y:
 						case 0:	# positions
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								vx = read_float(f)
 								vy = read_float(f)
 								vz = read_float(f)
 
-								positionsList.append((vx,vy,vz)*modelScale)
+								positionsList.append([vx,vy,vz])
 						case 1: 	# normals
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								nx = (read_byte(f) / 127.5) - 1.0
 								ny = (read_byte(f) / 127.5) - 1.0
 								nz = (read_byte(f) / 127.5) - 1.0
@@ -399,37 +452,37 @@ def importModel(filePath):
 
 								normalsList.append(Vector([nx,ny,nz]).normalized())
 						case 2: 	# colors
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								cr = read_byte(f)
 								cg = read_byte(f)
 								cb = read_byte(f)
 								ca = read_byte(f)
 						case 3: 	# uv's 1 for solid colors?
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
 								uvList[0].append(Vector([tu,1-tv]))
 						case 4: 	# uv's 2 for diffuse?
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
 								uvList[1].append(Vector([tu,1-tv]))
 						case 5: 	# uv's 3 unknown
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
 								uvList[2].append(Vector([tu,1-tv]))
 						case 6: 	# uv's 4 unknown
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								tu = read_half(f)
 								tv = read_half(f)
 
 								uvList[3].append(Vector([tu,1-tv]))
 						case 9: 	# weights
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								weight1 = read_float(f)
 								weight2 = read_float(f)
 								weight3 = read_float(f)
@@ -437,7 +490,7 @@ def importModel(filePath):
 
 								weightsList.append([weight1,weight2,weight3,weight4])
 						case 10: 	# bone id's
-							for y in range(vertexCount):
+							for z in range(vertexCount):
 								bone1 = read_byte(f)
 								bone2 = read_byte(f)
 								bone3 = read_byte(f)
@@ -446,10 +499,10 @@ def importModel(filePath):
 								boneIdsList.append([bone1,bone2,bone3,bone4])
 						case _:
 							# 7/8 = tangent/bitangent
-							print("unknown vertex attribute: {0}".format(x))
+							print("unknown vertex attribute: {0}".format(y))
 
 			f.seek(indexOffset + meshOffset)
-			for x in range(indexCount // 3):
+			for y in range(indexCount // 3):
 				fa = read_ushort(f)
 				fb = read_ushort(f)
 				fc = read_ushort(f)
@@ -466,70 +519,117 @@ def importModel(filePath):
 			if morphsFlag == 0x100:
 				morphCount = read_uint(f)
 				morphDataLength = read_uint(f)
-				morphBoundBox = [read_float(f) for y in range(6)]
+				morphBoundMin = [read_float(f) for y in range(3)]
+				morphBoundMax = [read_float(f) for y in range(3)]
 				morphNameHashList = [read_uint(f) for y in range(morphCount)]
+
+				bbX = (morphBoundMax[0] - morphBoundMin[0])
+				bbY = (morphBoundMax[1] - morphBoundMin[1])
+				bbZ = (morphBoundMax[2] - morphBoundMin[2])
+
+				# bbX = (table3.unkMax[0] - table3.unkMin[0])
+				# bbY = (table3.unkMax[1] - table3.unkMin[1])
+				# bbZ = (table3.unkMax[2] - table3.unkMin[2])
+
+				print(morphBoundMin)
+				print(morphBoundMax)
+				print()
+				print(table3.unkMin)
+				print(table3.unkMax)
+				print()
 
 				print("morphCount: {0:8x}".format(morphCount))
 
+
 				for y in range(morphCount):
 					morphDeltaVertexList = [read_uint(f) for z in range(vertexCount)]	# packed / unknown encoding
+					# x = mesh, y = morph target, z = vertex index
+					if x == 6 and y == 25:
+						print("{0} {1} {2}".format(bbX,bbY,bbZ))
+
+						for z, morphDeltaVertex in enumerate(morphDeltaVertexList):
+							# numbers = unpackNumber([11,11,10], morphDeltaVertex, morphBoundMin)
+							# # numbers = unpackNumber2([10,11,10], morphDeltaVertex)[::-1]
+							# # print("{0:032b}".format(morphDeltaVertex))
+							# print(numbers)
+							# positionsList[z] = tuple(x + y for x, y in zip(positionsList[z], numbers))
+
+							divisor = 20
+							# dx = morphBoundMin[0] - (((morphDeltaVertex >> 0)  & 0x7FF) / 2047.0) * bbX    # 11 bits
+							# dy = morphBoundMin[1] - (((morphDeltaVertex >> 11) & 0x7FF) / 2047.0) * bbY    # 11 bits
+							# dz = morphBoundMin[2] - (((morphDeltaVertex >> 22) & 0x3FF) / 1023.0) * bbZ    # 10 bits
+
+							dx = ((((morphDeltaVertex >> 0)  & 0x7FF) / 2047.0) - 0.5) / divisor	# 11 bits
+							dy = ((((morphDeltaVertex >> 11) & 0x7FF) / 2047.0) - 0.5) / divisor	# 11 bits
+							dz = ((((morphDeltaVertex >> 22) & 0x3FF) / 1023.0) - 0.5) / divisor	# 10 bits
+							
+							# # Sign-extend
+							# dx = sign_extend((morphDeltaVertex >> 0)  & 0x7FF, 11) / 2047.0
+							# dy = sign_extend((morphDeltaVertex >> 11) & 0x7FF, 11) / 2047.0
+							# dz = sign_extend((morphDeltaVertex >> 22) & 0x3FF, 10) / 1023.0
+
+							positionsList[z][0] = positionsList[z][0] + dx
+							positionsList[z][1] = positionsList[z][1] + dy
+							positionsList[z][2] = positionsList[z][2] + dz
+
 
 				# print_here(f)
 
-			meshName = str(x)
+			if x == 6:
+				meshName = str(x)
 
-			new_mesh = bpy.data.meshes.new(meshName)
-			new_mesh.from_pydata(positionsList, [], indexList)
-			
-			# new_mesh.update()
+				new_mesh = bpy.data.meshes.new(meshName)
+				new_mesh.from_pydata(positionsList, [], indexList)
+				
+				# new_mesh.update()
 
-			new_mesh.polygons.foreach_set("use_smooth", [True] * len(new_mesh.polygons))
-			new_mesh.update(calc_edges=True)
+				new_mesh.polygons.foreach_set("use_smooth", [True] * len(new_mesh.polygons))
+				new_mesh.update(calc_edges=True)
 
-			new_mesh.normals_split_custom_set_from_vertices(normalsList)
-
-
-			uvChannelCount = sum(1 for sublist in uvList if len(sublist) > 0)
-			print("UV Channel Count: {0}".format(uvChannelCount))
+				new_mesh.normals_split_custom_set_from_vertices(normalsList)
 
 
-			for x in range(uvChannelCount):
-				uv_layer = new_mesh.uv_layers.new(name=f"UVMap_{x}")
-				for loop in new_mesh.loops:
-					vert_index = loop.vertex_index
-					uv_layer.data[loop.index].uv = uvList[x][vert_index]
+				uvChannelCount = sum(1 for sublist in uvList if len(sublist) > 0)
+				print("UV Channel Count: {0}".format(uvChannelCount))
 
-			new_mesh.update()
 
-			mesh_obj = bpy.data.objects.new(meshName, new_mesh)
+				for y in range(uvChannelCount):
+					uv_layer = new_mesh.uv_layers.new(name=f"UVMap_{y}")
+					for loop in new_mesh.loops:
+						vert_index = loop.vertex_index
+						uv_layer.data[loop.index].uv = uvList[y][vert_index]
 
-			armature_obj = bpy.context.scene.collection.objects[0]
-			# for node in armature_obj.data.bones:
-			#   print(node.name)
+				new_mesh.update()
 
-			mod = mesh_obj.modifiers.new("Armature", 'ARMATURE')
-			mod.object = armature_obj
+				mesh_obj = bpy.data.objects.new(meshName, new_mesh)
 
-			for node in armature_obj.data.bones:
-				mesh_obj.vertex_groups.new(name = node.name)
+				armature_obj = bpy.context.scene.collection.objects[0]
+				# for node in armature_obj.data.bones:
+				#   print(node.name)
 
-			# for poly in new_mesh.polygons:
-			#   poly.use_smooth = True
+				mod = mesh_obj.modifiers.new("Armature", 'ARMATURE')
+				mod.object = armature_obj
 
-			for i in range(vertexCount): #per vertex
-				bones = boneIdsList[i]
-				weights = weightsList[i]
-				for j in range(len(weights)): # 1 through 4
-					if weights[j] == 0: continue
-					mesh_obj.vertex_groups[int(bones[j])].add([i], weights[j], 'ADD')
+				for node in armature_obj.data.bones:
+					mesh_obj.vertex_groups.new(name = node.name)
 
-			modelCollection.objects.link(mesh_obj)
+				# for poly in new_mesh.polygons:
+				#   poly.use_smooth = True
+
+				for i in range(vertexCount): #per vertex
+					bones = boneIdsList[i]
+					weights = weightsList[i]
+					for j in range(len(weights)): # 1 through 4
+						if weights[j] == 0: continue
+						mesh_obj.vertex_groups[int(bones[j])].add([i], weights[j], 'ADD')
+
+				modelCollection.objects.link(mesh_obj)
 			print("")
 
 		print("Last read model @ {0:x}".format(tell(f)))
 
-skelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\169.skel"
+skelPath = r"C:\Users\Xavier\Documents\github repos\Blender-Import-Scripts\Dragon Ball Project - Multi\samples\169.skel"		# base goku
 importSkeleton(skelPath)
 
-modelPath = r"C:\Users\Xavier\Downloads\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\167.mesh"
+modelPath = r"C:\Users\Xavier\Documents\github repos\Blender-Import-Scripts\Dragon Ball Project - Multi\samples\167.mesh"	# base goku
 importModel(modelPath)

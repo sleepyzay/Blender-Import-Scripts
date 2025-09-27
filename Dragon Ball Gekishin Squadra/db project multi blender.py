@@ -338,7 +338,7 @@ def importModel(filePath):
 		table4List = [_table4() for x in range(table4Count)]
 
 
-		for x in range(13,14):	# table2Count
+		for x in range(table2Count):	# table2Count
 			table2 = table2List[x]
 			table1 = table1List[table2.table1Id]
 			table3 = table3List[table2.table3Id]
@@ -484,7 +484,7 @@ def importModel(filePath):
 
 					shapeKeyList.append(shapeKeyDeltaPositionsList)
 			
-			if x == 13:
+			if x != 13000:
 				meshName = str(x)
 
 				new_mesh = bpy.data.meshes.new(meshName)
@@ -547,5 +547,5 @@ def importModel(filePath):
 skelPath = r"D:\tools\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\100.skel"
 importSkeleton(skelPath)
 
-modelPath = r"D:\tools\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\98.mesh"
+modelPath = r"D:\tools\JPKGReader-master\JPKGReader-master\JPKGReader\bin\Debug\net8.0\output\99.mesh"
 importModel(modelPath)

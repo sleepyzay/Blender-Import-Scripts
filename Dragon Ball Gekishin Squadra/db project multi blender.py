@@ -476,9 +476,9 @@ def importModel(filePath):
 					
 					shapeKeyDeltaPositionsList = []
 					for z, shapeKeyDeltaVertex in enumerate(shapeKeyDeltaVertexList):
-						dx = (((shapeKeyDeltaVertex >> 0)  & 0x7FF) / 2047.0) * shapeKeyBoundMax[0] - shapeKeyBoundMin[0]
-						dy = (((shapeKeyDeltaVertex >> 11) & 0x7FF) / 2047.0) * shapeKeyBoundMax[1] - shapeKeyBoundMin[1]
-						dz = (((shapeKeyDeltaVertex >> 22) & 0x3FF) / 1023.0) * shapeKeyBoundMax[2] - shapeKeyBoundMin[2]
+						dx = (((shapeKeyDeltaVertex >> 0)  & 0x7FF) / 2047.0) * shapeKeyBoundMax[0]
+						dy = (((shapeKeyDeltaVertex >> 11) & 0x7FF) / 2047.0) * shapeKeyBoundMax[1]
+						dz = (((shapeKeyDeltaVertex >> 22) & 0x3FF) / 1023.0) * shapeKeyBoundMax[2]
 
 						shapeKeyDeltaPositionsList.append([dx,dy,dz])
 
@@ -504,8 +504,7 @@ def importModel(filePath):
 						vert_index = loop.vertex_index
 						uv_layer.data[loop.index].uv = uvList[y][vert_index]
 
-				new_mesh.update()
-
+				
 				mesh_obj = bpy.data.objects.new(meshName, new_mesh)
 				armature_obj = bpy.context.scene.collection.objects[0]
 
@@ -522,22 +521,24 @@ def importModel(filePath):
 					mesh_obj.shape_key_add(name='Basis',from_mix=False)
 					mesh_obj.data.shape_keys.use_relative = True
 
-				for x in range(1, len(shapeKeyList)):
-					mesh_obj.shape_key_add(name="Shape_" + str(x),from_mix=False)
-					shape_key = mesh_obj.data.shape_keys.key_blocks[-1]
+					for x in range(1, len(shapeKeyList)):
+						shape_key = mesh_obj.shape_key_add(name="Shape_" + str(x),from_mix=False)
+						shape_key.interpolation = 'KEY_LINEAR'
 
-					for i in range(len(positionsList)):
-						shape_key.data[i].co.x += shapeKeyList[x][i][0] - shapeKeyList[0][i][0]
-						shape_key.data[i].co.y += shapeKeyList[x][i][1] - shapeKeyList[0][i][1]
-						shape_key.data[i].co.z += shapeKeyList[x][i][2] - shapeKeyList[0][i][2]
-					shape_key.value = 0.0
+						for i in range(len(positionsList)):
+							shape_key.data[i].co.x += shapeKeyList[x][i][0] - shapeKeyList[0][i][0]
+							shape_key.data[i].co.y += shapeKeyList[x][i][1] - shapeKeyList[0][i][1]
+							shape_key.data[i].co.z += shapeKeyList[x][i][2] - shapeKeyList[0][i][2]
+						shape_key.value = 0.0
 
-				for i in range(vertexCount): #per vertex
-					bones = boneIdsList[i]
-					weights = weightsList[i]
-					for j in range(len(weights)): # 1 through 4
-						if weights[j] == 0: continue
-						mesh_obj.vertex_groups[int(bones[j])].add([i], weights[j], 'ADD')
+					for i in range(vertexCount): #per vertex
+						bones = boneIdsList[i]
+						weights = weightsList[i]
+						for j in range(len(weights)): # 1 through 4
+							if weights[j] == 0: continue
+							mesh_obj.vertex_groups[int(bones[j])].add([i], weights[j], 'ADD')
+
+				new_mesh.update()
 
 				modelCollection.objects.link(mesh_obj)
 			print("")
